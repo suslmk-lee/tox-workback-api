@@ -1,0 +1,60 @@
+apiVersion: v1
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyI0NGNlNzg5Yi1rcjEtcmVnaXN0cnkuY29udGFpbmVyLm5obmNsb3VkLmNvbS9jb250YWluZXItcGxhdGZvcm0tcmVnaXN0cnkiOnsidXNlcm5hbWUiOiJYQ0ExT2owRnFBOE9NaGFsT1VoSyIsInBhc3N3b3JkIjoiekdneG83WGxwazVvalk3diIsImF1dGgiOiJXRU5CTVU5cU1FWnhRVGhQVFdoaGJFOVZhRXM2ZWtkbmVHODNXR3h3YXpWdmFsazNkZz09In19fQ==
+kind: Secret
+metadata:
+  annotations:
+    strategy.spinnaker.io/versioned: "false"
+  name: ncr
+  namespace: tox-workback
+type: kubernetes.io/dockerconfigjson
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: tox-workback
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: 44ce789b-kr1-registry.container.nhncloud.com/container-platform-registry/auth-service:latest
+        ports:
+        - containerPort: 8081
+        env:
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "password"
+        - name: DB_NAME
+          value: "authdb"
+        - name: JWT_SECRET
+          value: "your_secret_key"
+      imagePullSecrets:
+        - name: ncr
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: tox-workback
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+  selector:
+    app: auth-service

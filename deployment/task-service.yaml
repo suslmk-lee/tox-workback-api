@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-service
+  namespace: tox-workback
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-service
+  template:
+    metadata:
+      labels:
+        app: task-service
+    spec:
+      containers:
+      - name: task-service
+        image: 44ce789b-kr1-registry.container.nhncloud.com/container-platform-registry/task-service:latest
+        ports:
+        - containerPort: 8082
+        env:
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "password"
+        - name: DB_NAME
+          value: "taskdb"
+        - name: JWT_SECRET
+          value: "your_secret_key"
+      imagePullSecrets:
+        - name: ncr
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-service
+  namespace: tox-workback
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8082
+  selector:
+    app: task-service

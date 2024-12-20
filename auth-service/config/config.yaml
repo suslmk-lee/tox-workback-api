@@ -1,0 +1,6 @@
+DBHost: "postgres"
+DBPort: "5432"
+DBUser: "postgres"
+DBPassword: "password"
+DBName: "authdb"
+JWTSecret: "your_secret_key"
