@@ -10,6 +10,7 @@ import (
 func main() {
 	config.LoadConfig()
 	router := gin.Default()
+
 	routes.SetupRoutes(router)
 	router.Run(":8081")
 }

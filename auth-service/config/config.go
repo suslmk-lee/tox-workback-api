@@ -1,9 +1,9 @@
 package config
 
 import (
-	"log"
 	"auth-service/internal/database"
 	"auth-service/models"
+	"log"
 
 	"github.com/spf13/viper"
 	"gorm.io/driver/postgres"
@@ -24,6 +24,8 @@ type ConfigStruct struct {
 func LoadConfig() {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
+	viper.AddConfigPath("/app/config")
+	viper.AddConfigPath("config")
 	viper.AddConfigPath(".")
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file: %v", err)

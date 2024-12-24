@@ -28,7 +28,8 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: 44ce789b-kr1-registry.container.nhncloud.com/container-platform-registry/auth-service:latest
+        image: auth-service:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8081
         env:

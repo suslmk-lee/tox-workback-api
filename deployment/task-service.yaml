@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: task-service
-        image: 44ce789b-kr1-registry.container.nhncloud.com/container-platform-registry/task-service:latest
+        image: task-service:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8082
         env:
@@ -40,7 +41,7 @@ metadata:
   name: task-service
   namespace: tox-workback
 spec:
-  type: ClusterIP
+  type: NodePort
   ports:
     - port: 8082
   selector:
