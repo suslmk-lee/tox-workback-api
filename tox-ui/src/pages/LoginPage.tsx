@@ -20,10 +20,8 @@ const LoginPage = () => {
       const response = await login({ email, password });
       console.log('Login success:', response);
       
-      // 로그인 성공 후 페이지 이동 전에 약간의 지연을 줍니다
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 100);
+      // 로그인 성공 후 tasks 페이지로 이동
+      navigate('/tasks', { replace: true });
     } catch (error: any) {
       console.error('Login error:', error);
       setError(error.message || '로그인에 실패했습니다.');
