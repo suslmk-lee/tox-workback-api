@@ -48,64 +48,20 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     throw new Error('로그인에 실패했습니다.');
   } catch (error: any) {
     console.error('Login error:', error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.response?.data?.error) {
-        throw new Error(error.response.data.error);
-      }
-      
-      if (!error.response) {
-        throw new Error('서버에 연결할 수 없습니다.');
-      }
-      
-      switch (error.response.status) {
-        case 401:
-          throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.');
-        case 500:
-          throw new Error('서버 내부 오류가 발생했습니다.');
-        default:
-          throw new Error('로그인에 실패했습니다.');
-      }
-    }
-    
-    throw new Error('로그인 중 오류가 발생했습니다.');
+    throw error;
   }
 };
 
-export const register = async (credentials: RegisterCredentials) => {
+export const register = async (credentials: RegisterCredentials): Promise<RegisterResponse> => {
   try {
-    const { confirmPassword, ...registerData } = credentials;
-    console.log('Sending registration request:', registerData);
-    
-    const response = await axios.post<RegisterResponse>(`${API_URL}/register`, registerData);
-    console.log('Registration response:', response.data);
-    
-    if (response.data.status === 'success') {
-      return response.data;
-    }
-    
-    throw new Error('회원가입에 실패했습니다.');
+    const response = await axios.post<RegisterResponse>(`${API_URL}/register`, credentials);
+    return response.data;
   } catch (error: any) {
-    console.error('Registration error:', error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.response?.data?.error) {
-        throw new Error(error.response.data.error);
-      }
-      
-      if (!error.response) {
-        throw new Error('서버에 연결할 수 없습니다.');
-      }
-      
-      if (error.response.status === 409) {
-        throw new Error('이미 등록된 이메일입니다.');
-      }
-    }
-    
-    throw new Error('회원가입 중 오류가 발생했습니다.');
+    throw error;
   }
 };
 
 export const logout = () => {
   localStorage.removeItem('token');
+  localStorage.removeItem('user');
 };

@@ -1,29 +1,79 @@
 import axios from 'axios';
+import { getAuthToken } from '../utils/auth';
 
-const API_URL = 'http://localhost:31858/api';
+const API_URL = 'http://localhost:31858'; // API Gateway URL
 
 export interface User {
   id: number;
   name: string;
   email: string;
+  role: string;
+  company: string;
+  department: string;
+  position: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  password?: string;
+  company: string;
+  department: string;
+  position: string;
 }
 
 export interface UserUpdateData {
   name?: string;
   email?: string;
   password?: string;
+  company?: string;
+  department?: string;
+  position?: string;
 }
+
+// 프로필 조회
+export const getUserProfile = async (): Promise<User> => {
+  const token = getAuthToken();
+  const response = await axios.get(`${API_URL}/api/profile`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data;
+};
+
+// 프로필 업데이트
+export const updateUserProfile = async (data: UserProfile): Promise<User> => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Authentication token not found');
+  }
+
+  // 비밀번호가 비어있으면 제외
+  const updateData = { ...data };
+  if (!updateData.password) {
+    delete updateData.password;
+  }
+
+  const response = await axios.put(`${API_URL}/users/profile`, updateData, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return response.data.data;
+};
 
 export const getUsers = async (): Promise<User[]> => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
       throw new Error('인증이 필요합니다.');
     }
 
-    const response = await axios.get<{ status: string; data: User[] }>(`${API_URL}/users`, {
+    const response = await axios.get<{ status: string; data: User[] }>(`${API_URL}/api/users`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -49,12 +99,12 @@ export const getUsers = async (): Promise<User[]> => {
 
 export const getUser = async (id: number): Promise<User> => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
       throw new Error('인증이 필요합니다.');
     }
 
-    const response = await axios.get<{ status: string; data: User }>(`${API_URL}/users/${id}`, {
+    const response = await axios.get<{ status: string; data: User }>(`${API_URL}/api/users/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -83,13 +133,13 @@ export const getUser = async (id: number): Promise<User> => {
 
 export const updateUser = async (id: number, data: UserUpdateData): Promise<User> => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
       throw new Error('인증이 필요합니다.');
     }
 
     const response = await axios.put<{ status: string; data: User }>(
-      `${API_URL}/users/${id}`,
+      `${API_URL}/api/users/${id}`,
       data,
       {
         headers: {
@@ -124,12 +174,12 @@ export const updateUser = async (id: number, data: UserUpdateData): Promise<User
 
 export const deleteUser = async (id: number): Promise<void> => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
       throw new Error('인증이 필요합니다.');
     }
 
-    await axios.delete(`${API_URL}/users/${id}`, {
+    await axios.delete(`${API_URL}/api/users/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

@@ -1,59 +1,50 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  IconButton,
-  Box,
-} from '@mui/material';
-import {
-  Assignment as TaskIcon,
-  People as UserIcon,
-  ExitToApp as LogoutIcon,
-} from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { logout } from '../services/authService';
 
 const NavBar: React.FC = () => {
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    logout();
     navigate('/login');
   };
-
-  if (!token) {
-    return null;
-  }
 
   return (
     <AppBar position="static">
       <Toolbar>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          TOX
+          TOX Workback
         </Typography>
-        
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
             color="inherit"
-            startIcon={<TaskIcon />}
-            onClick={() => navigate('/tasks')}
+            component={RouterLink}
+            to="/tasks"
           >
-            작업
+            작업 목록
           </Button>
-          
           <Button
             color="inherit"
-            startIcon={<UserIcon />}
-            onClick={() => navigate('/users')}
+            component={RouterLink}
+            to="/users"
           >
-            사용자
+            사용자 관리
           </Button>
-          
-          <IconButton color="inherit" onClick={handleLogout}>
-            <LogoutIcon />
-          </IconButton>
+          <Button
+            color="inherit"
+            component={RouterLink}
+            to="/profile"
+          >
+            내 프로필
+          </Button>
+          <Button
+            color="inherit"
+            onClick={handleLogout}
+          >
+            로그아웃
+          </Button>
         </Box>
       </Toolbar>
     </AppBar>

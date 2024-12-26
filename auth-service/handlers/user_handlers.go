@@ -77,18 +77,22 @@ func CreateUser(c *gin.Context) {
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status": "error",
-			"error":  "잘못된 요청 데이터입니다",
+			"error":  err.Error(),
 		})
 		return
 	}
 
-	// 기본 role을 'user'로 설정
-	if user.Role == "" {
-		user.Role = models.RoleUser
+	// 이메일 중복 체크
+	if models.IsEmailExists(nil, user.Email, 0) {
+		c.JSON(http.StatusConflict, gin.H{
+			"status": "error",
+			"error":  "이미 등록된 이메일입니다",
+		})
+		return
 	}
 
 	// role 유효성 검사
-	if !isValidRole(user.Role) {
+	if !models.IsValidRole(user.Role) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status": "error",
 			"error":  "잘못된 역할입니다",
@@ -96,6 +100,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
+	// 사용자 생성
 	if err := models.CreateUser(&user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "error",
@@ -104,31 +109,20 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 비밀번호는 응답에서 제외
-	userResponse := gin.H{
-		"id":         user.ID,
-		"name":       user.Name,
-		"email":      user.Email,
-		"role":       user.Role,
-		"created_at": user.CreatedAt,
-		"updated_at": user.UpdatedAt,
-	}
-
 	c.JSON(http.StatusCreated, gin.H{
 		"status": "success",
-		"data":   userResponse,
+		"data": gin.H{
+			"id":         user.ID,
+			"name":       user.Name,
+			"email":      user.Email,
+			"role":       user.Role,
+			"company":    user.Company,
+			"department": user.Department,
+			"position":   user.Position,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
 	})
-}
-
-// isValidRole checks if the role is valid
-func isValidRole(role string) bool {
-	validRoles := []string{models.RoleGuest, models.RoleUser, models.RoleProject, models.RoleAdmin}
-	for _, r := range validRoles {
-		if r == role {
-			return true
-		}
-	}
-	return false
 }
 
 // UpdateUser updates user information
@@ -143,27 +137,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 현재 로그인한 사용자의 ID 확인
-	currentUserID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": "error",
-			"error":  "인증 정보를 찾을 수 없습니다",
-		})
-		return
-	}
-
-	// 현재 로그인한 사용자 정보 조회
-	currentUser, err := models.GetUserByID(currentUserID.(uint))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
-			"error":  "사용자 정보를 조회할 수 없습니다",
-		})
-		return
-	}
-
-	// 기존 사용자 정보 조회
+	// 현재 사용자 정보 조회
 	user, err := models.GetUserByID(uint(userID))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -173,32 +147,40 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 업데이트할 데이터 바인딩
 	var updateData struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Role     string `json:"role"`
+		Name       string `json:"name"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
+		Role       string `json:"role"`
+		Company    string `json:"company"`
+		Department string `json:"department"`
+		Position   string `json:"position"`
 	}
 
 	if err := c.ShouldBindJSON(&updateData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status": "error",
-			"error":  "잘못된 요청 데이터입니다",
+			"error":  err.Error(),
 		})
 		return
 	}
 
-	// role은 관리자만 변경 가능
-	if updateData.Role != "" {
-		if !currentUser.IsAdmin() {
-			c.JSON(http.StatusForbidden, gin.H{
+	// 필드 업데이트
+	if updateData.Name != "" {
+		user.Name = updateData.Name
+	}
+	if updateData.Email != "" && updateData.Email != user.Email {
+		if models.IsEmailExists(nil, updateData.Email, user.ID) {
+			c.JSON(http.StatusConflict, gin.H{
 				"status": "error",
-				"error":  "역할을 변경할 권한이 없습니다",
+				"error":  "이미 등록된 이메일입니다",
 			})
 			return
 		}
-		if !isValidRole(updateData.Role) {
+		user.Email = updateData.Email
+	}
+	if updateData.Role != "" {
+		if !models.IsValidRole(updateData.Role) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status": "error",
 				"error":  "잘못된 역할입니다",
@@ -207,19 +189,21 @@ func UpdateUser(c *gin.Context) {
 		}
 		user.Role = updateData.Role
 	}
-
-	if updateData.Name != "" {
-		user.Name = updateData.Name
+	if updateData.Company != "" {
+		user.Company = updateData.Company
 	}
-	if updateData.Email != "" {
-		user.Email = updateData.Email
+	if updateData.Department != "" {
+		user.Department = updateData.Department
+	}
+	if updateData.Position != "" {
+		user.Position = updateData.Position
 	}
 	if updateData.Password != "" {
 		hashedPassword, err := models.HashPassword(updateData.Password)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status": "error",
-				"error":  "비밀번호 해싱에 실패했습니다",
+				"error":  "비밀번호 처리 중 오류가 발생했습니다",
 			})
 			return
 		}
@@ -234,19 +218,19 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 비밀번호는 응답에서 제외
-	userResponse := gin.H{
-		"id":         user.ID,
-		"name":       user.Name,
-		"email":      user.Email,
-		"role":       user.Role,
-		"created_at": user.CreatedAt,
-		"updated_at": user.UpdatedAt,
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"data":   userResponse,
+		"data": gin.H{
+			"id":         user.ID,
+			"name":       user.Name,
+			"email":      user.Email,
+			"role":       user.Role,
+			"company":    user.Company,
+			"department": user.Department,
+			"position":   user.Position,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
 	})
 }
 
@@ -303,4 +287,143 @@ func DeleteUser(c *gin.Context) {
 		"status":  "success",
 		"message": "사용자가 삭제되었습니다",
 	})
+}
+
+// GetUserProfile returns the profile of the currently logged in user
+func GetUserProfile(c *gin.Context) {
+	// 현재 로그인한 사용자의 ID 확인
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status": "error",
+			"error":  "인증 정보를 찾을 수 없습니다",
+		})
+		return
+	}
+
+	// 사용자 정보 조회
+	user, err := models.GetUserByID(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status": "error",
+			"error":  "사용자 정보를 조회할 수 없습니다",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data": gin.H{
+			"id":         user.ID,
+			"name":       user.Name,
+			"email":      user.Email,
+			"role":       user.Role,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
+	})
+}
+
+// UpdateUserProfile updates the profile of the currently logged in user
+func UpdateUserProfile(c *gin.Context) {
+	// 현재 로그인한 사용자의 ID 확인
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status": "error",
+			"error":  "인증 정보를 찾을 수 없습니다",
+		})
+		return
+	}
+
+	var req UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// 사용자 정보 조회
+	user, err := models.GetUserByID(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status": "error",
+			"error":  "사용자를 찾을 수 없습니다",
+		})
+		return
+	}
+
+	// 이메일 중복 체크 (이메일이 변경된 경우에만)
+	if req.Email != "" && req.Email != user.Email {
+		if models.IsEmailExists(nil, req.Email, user.ID) {
+			c.JSON(http.StatusConflict, gin.H{
+				"status": "error",
+				"error":  "이미 등록된 이메일입니다",
+			})
+			return
+		}
+		user.Email = req.Email
+	}
+
+	// 필드 업데이트
+	if req.Name != "" {
+		user.Name = req.Name
+	}
+	if req.Company != "" {
+		user.Company = req.Company
+	}
+	if req.Department != "" {
+		user.Department = req.Department
+	}
+	if req.Position != "" {
+		user.Position = req.Position
+	}
+
+	// 비밀번호 업데이트 (비밀번호가 제공된 경우에만)
+	if req.Password != "" {
+		hashedPassword, err := models.HashPassword(req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": "error",
+				"error":  "비밀번호 처리 중 오류가 발생했습니다",
+			})
+			return
+		}
+		user.Password = hashedPassword
+	}
+
+	// 사용자 정보 업데이트
+	if err := models.UpdateUser(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status": "error",
+			"error":  "프로필 업데이트에 실패했습니다",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data": gin.H{
+			"id":         user.ID,
+			"name":       user.Name,
+			"email":      user.Email,
+			"role":       user.Role,
+			"company":    user.Company,
+			"department": user.Department,
+			"position":   user.Position,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
+	})
+}
+
+type UpdateUserRequest struct {
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	Company    string `json:"company"`
+	Department string `json:"department"`
+	Position   string `json:"position"`
 }

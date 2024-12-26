@@ -26,6 +26,13 @@ func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
+		// User profile routes
+		api.GET("/profile", handlers.GetUserProfile)
+		api.PUT("/profile", handlers.UpdateUserProfile)
+		fmt.Println("설정된 profile 라우트:")
+		fmt.Println("- GET /api/profile")
+		fmt.Println("- PUT /api/profile")
+
 		// User management routes
 		users := api.Group("/users")
 		{

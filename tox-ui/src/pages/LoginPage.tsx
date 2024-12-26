@@ -1,122 +1,80 @@
-import { useState } from 'react';
-import { Box, Button, Container, TextField, Typography, Paper, Link, Alert } from '@mui/material';
-import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Box, Button, Container, TextField, Typography, Paper, Alert } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { login } from '../services/authService';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
     try {
-      const response = await login({ email, password });
-      console.log('Login success:', response);
-      
-      // 로그인 성공 후 tasks 페이지로 이동
+      await login({ email, password });
       navigate('/tasks', { replace: true });
     } catch (error: any) {
       console.error('Login error:', error);
-      setError(error.message || '로그인에 실패했습니다.');
-    } finally {
-      setLoading(false);
+      setError(error.response?.data?.message || '로그인에 실패했습니다.');
     }
   };
 
   return (
-    <Container 
-      maxWidth="xs" 
-      sx={{
+    <Container maxWidth="sm">
+      <Box sx={{
+        marginTop: 8,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-      }}
-    >
-      <Paper 
-        elevation={3} 
-        sx={{ 
-          width: '100%',
-          p: 4, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center',
-          borderRadius: 2
-        }}
-      >
-        <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
-          로그인
-        </Typography>
+      }}>
+        <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
+          <Typography component="h1" variant="h5" align="center" gutterBottom>
+            로그인
+          </Typography>
 
-        {location.state?.message && (
-          <Alert severity="success" sx={{ width: '100%', mb: 2 }}>
-            {location.state.message}
-          </Alert>
-        )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-        {error && (
-          <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="이메일 주소"
-            name="email"
-            autoComplete="email"
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            sx={{ mb: 2 }}
-            disabled={loading}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="비밀번호"
-            type="password"
-            id="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            sx={{ mb: 3 }}
-            disabled={loading}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ 
-              py: 1.5,
-              mb: 2,
-              borderRadius: 1.5
-            }}
-            disabled={loading}
-          >
-            {loading ? '로그인 중...' : '로그인'}
-          </Button>
-          <Box sx={{ textAlign: 'center' }}>
-            <Link component={RouterLink} to="/register" variant="body2">
-              계정이 없으신가요? 회원가입
-            </Link>
-          </Box>
-        </Box>
-      </Paper>
+          <form onSubmit={handleSubmit}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="email"
+              label="이메일"
+              name="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label="비밀번호"
+              type="password"
+              id="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+            >
+              로그인
+            </Button>
+          </form>
+        </Paper>
+      </Box>
     </Container>
   );
 };
