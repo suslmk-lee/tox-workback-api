@@ -208,7 +208,6 @@ func UpdateUser(c *gin.Context) {
 		user.Role = updateData.Role
 	}
 
-	// 다른 필드 업데이트
 	if updateData.Name != "" {
 		user.Name = updateData.Name
 	}
