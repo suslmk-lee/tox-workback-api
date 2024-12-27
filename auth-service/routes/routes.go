@@ -54,5 +54,5 @@ func SetupRoutes(router *gin.Engine) {
 	for _, route := range routes {
 		fmt.Printf("Method: %s, Path: %s\n", route.Method, route.Path)
 	}
-	fmt.Println("=== 라우트 설정 완료 ===\n")
+	fmt.Println("=== 라우트 설정 완료 ===")
 }
