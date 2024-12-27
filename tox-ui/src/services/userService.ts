@@ -36,11 +36,13 @@ export interface UserUpdateData {
 // 프로필 조회
 export const getUserProfile = async (): Promise<User> => {
   const token = getAuthToken();
+  console.log('Fetching user profile...');
   const response = await axios.get(`${API_URL}/api/profile`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
   });
+  console.log('User profile response:', response.data);
   return response.data.data;
 };
 
@@ -57,11 +59,13 @@ export const updateUserProfile = async (data: UserProfile): Promise<User> => {
     delete updateData.password;
   }
 
-  const response = await axios.put(`${API_URL}/users/profile`, updateData, {
+  console.log('Updating user profile with data:', updateData);
+  const response = await axios.put(`${API_URL}/api/profile`, updateData, {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
   });
+  console.log('Update profile response:', response.data);
 
   return response.data.data;
 };
@@ -73,27 +77,18 @@ export const getUsers = async (): Promise<User[]> => {
       throw new Error('인증이 필요합니다.');
     }
 
+    console.log('Fetching users list...');
     const response = await axios.get<{ status: string; data: User[] }>(`${API_URL}/api/users`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+    console.log('Users list response:', response.data);
 
     return response.data.data;
-  } catch (error: any) {
-    console.error('Users fetch error:', error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
-        throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
-      }
-      if (!error.response) {
-        throw new Error('서버에 연결할 수 없습니다.');
-      }
-      throw new Error(error.response.data.error || '사용자 목록을 불러오는데 실패했습니다.');
-    }
-    
-    throw new Error('사용자 목록을 불러오는데 실패했습니다.');
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    throw error;
   }
 };
 
@@ -104,11 +99,13 @@ export const getUser = async (id: number): Promise<User> => {
       throw new Error('인증이 필요합니다.');
     }
 
+    console.log('Fetching user...');
     const response = await axios.get<{ status: string; data: User }>(`${API_URL}/api/users/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+    console.log('User response:', response.data);
 
     return response.data.data;
   } catch (error: any) {
@@ -138,6 +135,7 @@ export const updateUser = async (id: number, data: UserUpdateData): Promise<User
       throw new Error('인증이 필요합니다.');
     }
 
+    console.log('Updating user...');
     const response = await axios.put<{ status: string; data: User }>(
       `${API_URL}/api/users/${id}`,
       data,
@@ -147,6 +145,7 @@ export const updateUser = async (id: number, data: UserUpdateData): Promise<User
         },
       }
     );
+    console.log('Update user response:', response.data);
 
     return response.data.data;
   } catch (error: any) {
@@ -179,11 +178,13 @@ export const deleteUser = async (id: number): Promise<void> => {
       throw new Error('인증이 필요합니다.');
     }
 
+    console.log('Deleting user...');
     await axios.delete(`${API_URL}/api/users/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+    console.log('User deleted successfully');
   } catch (error: any) {
     console.error('User delete error:', error);
     

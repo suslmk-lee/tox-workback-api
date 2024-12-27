@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"auth-service/models"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -26,6 +27,9 @@ func GetUsers(c *gin.Context) {
 			"name":       user.Name,
 			"email":      user.Email,
 			"role":       user.Role,
+			"company":    user.Company,
+			"department": user.Department,
+			"position":   user.Position,
 			"created_at": user.CreatedAt,
 			"updated_at": user.UpdatedAt,
 		})
@@ -311,17 +315,25 @@ func GetUserProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"status": "success",
 		"data": gin.H{
 			"id":         user.ID,
 			"name":       user.Name,
 			"email":      user.Email,
 			"role":       user.Role,
+			"company":    user.Company,
+			"department": user.Department,
+			"position":   user.Position,
 			"created_at": user.CreatedAt,
 			"updated_at": user.UpdatedAt,
 		},
-	})
+	}
+	
+	// 응답 로깅
+	log.Printf("GetUserProfile response for user %d: %+v", user.ID, response)
+	
+	c.JSON(http.StatusOK, response)
 }
 
 // UpdateUserProfile updates the profile of the currently logged in user
@@ -344,6 +356,9 @@ func UpdateUserProfile(c *gin.Context) {
 		})
 		return
 	}
+
+	// 요청 로깅
+	log.Printf("UpdateUserProfile request for user %v: %+v", userID, req)
 
 	// 사용자 정보 조회
 	user, err := models.GetUserByID(userID.(uint))
@@ -403,7 +418,7 @@ func UpdateUserProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"status": "success",
 		"data": gin.H{
 			"id":         user.ID,
@@ -416,7 +431,12 @@ func UpdateUserProfile(c *gin.Context) {
 			"created_at": user.CreatedAt,
 			"updated_at": user.UpdatedAt,
 		},
-	})
+	}
+
+	// 응답 로깅
+	log.Printf("UpdateUserProfile response for user %d: %+v", user.ID, response)
+
+	c.JSON(http.StatusOK, response)
 }
 
 type UpdateUserRequest struct {
