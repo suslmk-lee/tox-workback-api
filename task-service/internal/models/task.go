@@ -11,10 +11,10 @@ type TaskPriority string
 
 const (
 	// Task Types
-	TaskTypeBug       TaskType = "BUG"
-	TaskTypeFeature   TaskType = "FEATURE"
+	TaskTypeBug         TaskType = "BUG"
+	TaskTypeFeature     TaskType = "FEATURE"
 	TaskTypeImprovement TaskType = "IMPROVEMENT"
-	TaskTypeTask      TaskType = "TASK"
+	TaskTypeTask        TaskType = "TASK"
 
 	// Task Status
 	TaskStatusTodo       TaskStatus = "TODO"
@@ -23,27 +23,31 @@ const (
 	TaskStatusBlocked    TaskStatus = "BLOCKED"
 
 	// Task Priority
-	TaskPriorityLow    TaskPriority = "LOW"
-	TaskPriorityMedium TaskPriority = "MEDIUM"
-	TaskPriorityHigh   TaskPriority = "HIGH"
+	TaskPriorityLow      TaskPriority = "LOW"
+	TaskPriorityMedium   TaskPriority = "MEDIUM"
+	TaskPriorityHigh     TaskPriority = "HIGH"
 	TaskPriorityCritical TaskPriority = "CRITICAL"
 )
 
 type Task struct {
-	ID              string       `gorm:"primaryKey" json:"id"`
-	Title           string       `json:"title"`
-	Description     string       `json:"description"`
-	Type            TaskType     `json:"type" gorm:"default:'TASK'"`
-	Status          TaskStatus   `json:"status" gorm:"default:'TODO'"`
-	Priority        TaskPriority `json:"priority" gorm:"default:'MEDIUM'"`
-	AssigneeID      *uint        `json:"assignee_id"`
-	StartTime       *time.Time   `json:"start_time"`
-	DueDate         *time.Time   `json:"due_date"`
-	Progress        int          `json:"progress" gorm:"default:0"` // 0-100
-	EstimatedHours  float64      `json:"estimated_hours"`
-	UserID          uint         `json:"user_id"`
-	CreatedAt       time.Time    `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt       time.Time    `json:"updated_at" gorm:"autoUpdateTime"`
+	ID             int64        `gorm:"column:id;primaryKey" json:"id"`
+	Title          string       `gorm:"column:title;type:varchar(255)" json:"title"`
+	Description    string       `gorm:"column:description;type:text" json:"description"`
+	Type           TaskType     `gorm:"column:type;type:varchar(20)" json:"type"`
+	Status         TaskStatus   `gorm:"column:status;type:varchar(20)" json:"status"`
+	Priority       TaskPriority `gorm:"column:priority;type:varchar(20)" json:"priority"`
+	AssigneeID     *int         `gorm:"column:assignee_id" json:"assignee_id"`
+	StartTime      *time.Time   `gorm:"column:start_time" json:"start_time"`
+	DueDate        *time.Time   `gorm:"column:due_date" json:"due_date"`
+	Progress       int          `gorm:"column:progress" json:"progress"`
+	EstimatedHours int64        `gorm:"column:estimated_hour" json:"estimated_hours"`
+	UserID         string       `gorm:"column:user_id;type:varchar(20)" json:"user_id"`
+	CreatedAt      time.Time    `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt      time.Time    `gorm:"column:updated_at" json:"updated_at"`
+}
+
+func (Task) TableName() string {
+	return "tasks"
 }
 
 func CreateTask(task *Task) error {
@@ -65,7 +69,7 @@ func GetAllTasks() ([]Task, error) {
 	return tasks, err
 }
 
-func GetTasksByUserID(userID uint) ([]Task, error) {
+func GetTasksByUserID(userID string) ([]Task, error) {
 	var tasks []Task
 	err := database.GetDB().Where("user_id = ?", userID).Find(&tasks).Error
 	return tasks, err
@@ -75,6 +79,6 @@ func UpdateTask(task *Task) error {
 	return database.GetDB().Save(task).Error
 }
 
-func DeleteTask(id string) error {
+func DeleteTask(id int64) error {
 	return database.GetDB().Delete(&Task{}, id).Error
 }

@@ -1,54 +1,91 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"task-service/internal/models"
-
-	"github.com/gin-gonic/gin"
 )
 
-func CreateTask(c *gin.Context) {
+func CreateTask(w http.ResponseWriter, r *http.Request) {
 	var task models.Task
-	if err := c.ShouldBindJSON(&task); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	if err := models.CreateTask(&task); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, task)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(task)
 }
 
-func GetTasks(c *gin.Context) {
+func GetTasks(w http.ResponseWriter, r *http.Request) {
 	tasks, err := models.GetAllTasks()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, tasks)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
 }
 
-func UpdateTask(c *gin.Context) {
-	id := c.Param("id")
+func UpdateTask(w http.ResponseWriter, r *http.Request) {
+	// URL에서 ID 파라미터 추출
+	idStr := r.URL.Path[len("/api/tasks/"):]
+	taskID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
 	var task models.Task
-	if err := c.ShouldBindJSON(&task); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	task.ID = id
+
+	task.ID = taskID
 	if err := models.UpdateTask(&task); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	c.JSON(http.StatusOK, task)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(task)
 }
 
-func DeleteTask(c *gin.Context) {
-	id := c.Param("id")
-	if err := models.DeleteTask(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+func DeleteTask(w http.ResponseWriter, r *http.Request) {
+	// URL에서 ID 파라미터 추출
+	idStr := r.URL.Path[len("/api/tasks/"):]
+	taskID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "task deleted"})
+
+	if err := models.DeleteTask(taskID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func GetTasksByUserID(w http.ResponseWriter, r *http.Request) {
+	// URL에서 user_id 파라미터 추출
+	userID := r.URL.Path[len("/api/tasks/user/"):]
+
+	tasks, err := models.GetTasksByUserID(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
 }

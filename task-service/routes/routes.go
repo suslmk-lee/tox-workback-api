@@ -1,27 +1,54 @@
 package routes
 
 import (
+	"net/http"
 	"task-service/handlers"
-	"task-service/middleware"
-
-	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(router *gin.Engine) {
-	// Public routes
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "ok",
-		})
+func SetupRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	// API 라우트 설정
+	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			handlers.CreateTask(w, r)
+		case http.MethodGet:
+			handlers.GetTasks(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	})
 
-	// Protected routes
-	api := router.Group("/api")
-	api.Use(middleware.AuthMiddleware())
-	{
-		api.POST("/tasks", handlers.CreateTask)
-		api.GET("/tasks", handlers.GetTasks)
-		api.PUT("/tasks/:id", handlers.UpdateTask)
-		api.DELETE("/tasks/:id", handlers.DeleteTask)
-	}
+	mux.HandleFunc("/api/tasks/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPut:
+			handlers.UpdateTask(w, r)
+		case http.MethodDelete:
+			handlers.DeleteTask(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/tasks/user/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetTasksByUserID(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// CORS 미들웨어 설정
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		// OPTIONS 요청 처리
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// 실제 요청 처리
+		mux.ServeHTTP(w, r)
+	})
 }
