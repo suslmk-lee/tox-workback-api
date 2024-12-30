@@ -2,7 +2,6 @@ package models
 
 import (
 	"task-service/internal/database"
-	"time"
 )
 
 type TaskType string
@@ -11,10 +10,18 @@ type TaskPriority string
 
 const (
 	// Task Types
-	TaskTypeBug         TaskType = "BUG"
-	TaskTypeFeature     TaskType = "FEATURE"
-	TaskTypeImprovement TaskType = "IMPROVEMENT"
-	TaskTypeTask        TaskType = "TASK"
+	TaskType1  TaskType = "1"
+	TaskType2  TaskType = "2"
+	TaskType3  TaskType = "3"
+	TaskType4  TaskType = "4"
+	TaskType5  TaskType = "5"
+	TaskType6  TaskType = "6"
+	TaskType7  TaskType = "7"
+	TaskType8  TaskType = "8"
+	TaskType9  TaskType = "9"
+	TaskType10 TaskType = "10"
+	TaskType11 TaskType = "11"
+	TaskType12 TaskType = "12"
 
 	// Task Status
 	TaskStatusTodo       TaskStatus = "TODO"
@@ -36,15 +43,15 @@ type Task struct {
 	Type           TaskType     `gorm:"column:type;type:varchar(20)" json:"type"`
 	Status         TaskStatus   `gorm:"column:status;type:varchar(20)" json:"status"`
 	Priority       TaskPriority `gorm:"column:priority;type:varchar(20)" json:"priority"`
-	AssigneeID     *int         `gorm:"column:assignee_id" json:"assignee_id"`
-	StartTime      *time.Time   `gorm:"column:start_time" json:"start_time"`
-	DueDate        *time.Time   `gorm:"column:due_date" json:"due_date"`
+	AssigneeID     *int         `gorm:"column:assignee_id" json:"assignee_id,omitempty"`
+	StartTime      *int64       `gorm:"column:start_time" json:"start_time,omitempty"`
+	DueDate        *int64       `gorm:"column:due_date" json:"due_date,omitempty"`
 	Progress       int          `gorm:"column:progress" json:"progress"`
-	EstimatedHours int64        `gorm:"column:estimated_hour" json:"estimated_hours"`
+	EstimatedHours *int64       `gorm:"column:estimated_hour" json:"estimated_hours,omitempty"`
 	UserID         string       `gorm:"column:user_id;type:varchar(20)" json:"user_id"`
-	ParentID       *int64       `gorm:"column:parent_id;type:bigint" json:"parent_id"`
-	CreatedAt      time.Time    `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt      time.Time    `gorm:"column:updated_at" json:"updated_at"`
+	ParentID       *int64       `gorm:"column:parent_id;type:bigint" json:"parent_id,omitempty"`
+	CreatedAt      int64        `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt      int64        `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (Task) TableName() string {
@@ -56,7 +63,7 @@ func CreateTask(task *Task) error {
 		task.Status = TaskStatusTodo
 	}
 	if task.Type == "" {
-		task.Type = TaskTypeTask
+		task.Type = TaskType12
 	}
 	if task.Priority == "" {
 		task.Priority = TaskPriorityMedium
@@ -116,7 +123,7 @@ func GetParentTask(taskID int64) (*Task, error) {
 
 // GetTaskHierarchy 특정 태스크의 전체 계층 구조를 조회
 type TaskHierarchy struct {
-	Task     Task           `json:"task"`
+	Task     Task            `json:"task"`
 	SubTasks []TaskHierarchy `json:"sub_tasks,omitempty"`
 }
 
@@ -127,7 +134,7 @@ func GetTaskHierarchy(taskID int64) (*TaskHierarchy, error) {
 	}
 
 	hierarchy := &TaskHierarchy{Task: task}
-	
+
 	// 하위 태스크들 조회
 	subTasks, err := GetSubTasks(taskID)
 	if err != nil {

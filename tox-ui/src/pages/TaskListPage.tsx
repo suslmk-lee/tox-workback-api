@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -25,36 +25,81 @@ import {
   Grid,
   LinearProgress,
   Autocomplete,
+  InputAdornment
 } from '@mui/material';
 import {
   AdapterDateFns
 } from '@mui/x-date-pickers/AdapterDateFns';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { format } from 'date-fns';
 import ko from 'date-fns/locale/ko';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AddIcon from '@mui/icons-material/Add';
-import { Task, TaskType, TaskStatus, TaskPriority, getTasks, createTask, getTypeText } from '../services/taskService';
+import EditIcon from '@mui/icons-material/Edit';
+import { Task, TaskType, TaskStatus, TaskPriority, getTasks, createTask, getTypeText, CreateTaskRequest, updateTask } from '../services/taskService';
 import { logout } from '../services/authService';
 import TaskEditDialog from '../components/TaskEditDialog';
 import { User, getUsers } from '../services/userService';
 import MDEditor from '@uiw/react-md-editor';
+import { formatToKST, toUTCMillis, fromUTCMillis, isOverdue, toStartOfDay, formatDate } from '../utils/dateUtils';
+import SearchIcon from '@mui/icons-material/Search';
 
-const DATE_FORMAT = 'yyyy-MM-dd HH:mm';
+const getTypeColor = (type: TaskType) => {
+  switch (type) {
+    case '1': // MainTask
+      return '#1976d2';  // 파란색
+    case '2': // 기획&설계
+      return '#9c27b0';  // 보라색
+    case '3': // 버그
+      return '#d32f2f';  // 빨간색
+    case '4': // 샘플
+      return '#ed6c02';  // 주황색
+    case '5': // 개발
+      return '#2e7d32';  // 초록색
+    case '6': // 지원
+      return '#0288d1';  // 하늘색
+    case '7': // 보안
+      return '#c2185b';  // 분홍색
+    case '8': // 기술검토
+      return '#7b1fa2';  // 진한 보라색
+    case '9': // 리소스
+      return '#1565c0';  // 진한 파란색
+    case '10': // 테스트
+      return '#558b2f';  // 연두색
+    case '11': // 문서화
+      return '#00796b';  // 청록색
+    case '12': // 관리
+      return '#5d4037';  // 갈색
+    default:
+      return '#757575';  // 회색
+  }
+};
 
 const getStatusColor = (status: TaskStatus) => {
   switch (status) {
     case 'TODO':
-      return 'default';
+      return '#757575';  // 회색
     case 'IN_PROGRESS':
-      return 'primary';
+      return '#1976d2';  // 파란색
     case 'DONE':
-      return 'success';
-    case 'BLOCKED':
-      return 'error';
+      return '#2e7d32';  // 초록색
     default:
-      return 'default';
+      return '#757575';  // 회색
+  }
+};
+
+const getPriorityColor = (priority: TaskPriority) => {
+  switch (priority) {
+    case 'LOW':
+      return '#757575';  // 회색
+    case 'MEDIUM':
+      return '#1976d2';  // 파란색
+    case 'HIGH':
+      return '#ed6c02';  // 주황색
+    case 'CRITICAL':
+      return '#d32f2f';  // 빨간색
+    default:
+      return '#757575';  // 회색
   }
 };
 
@@ -66,25 +111,8 @@ const getStatusText = (status: TaskStatus) => {
       return '진행 중';
     case 'DONE':
       return '완료';
-    case 'BLOCKED':
-      return '차단됨';
     default:
       return status;
-  }
-};
-
-const getPriorityColor = (priority: TaskPriority) => {
-  switch (priority) {
-    case 'LOW':
-      return 'info';
-    case 'MEDIUM':
-      return 'warning';
-    case 'HIGH':
-      return 'error';
-    case 'CRITICAL':
-      return 'error';
-    default:
-      return 'default';
   }
 };
 
@@ -103,49 +131,68 @@ const getPriorityText = (priority: TaskPriority) => {
   }
 };
 
-const formatDate = (date: string) => {
-  try {
-    return format(new Date(date), DATE_FORMAT, { locale: ko });
-  } catch {
-    return '';
-  }
+const taskTypeOptions = {
+  '1': 'MainTask',
+  '2': '기획&설계',
+  '3': '버그',
+  '4': '샘플',
+  '5': '개발',
+  '6': '지원',
+  '7': '보안',
+  '8': '기술검토',
+  '9': '리소스',
+  '10': '테스트',
+  '11': '문서화',
+  '12': '관리'
+};
+
+const priorityOptions = {
+  'LOW': '낮음',
+  'MEDIUM': '보통',
+  'HIGH': '높음',
+  'CRITICAL': '긴급'
 };
 
 const TaskListPage = () => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedParentTask, setSelectedParentTask] = useState<Task | null>(null);
-  const [newTask, setNewTask] = useState({
+  const [openCreateDialog, setOpenCreateDialog] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [newTask, setNewTask] = useState<Partial<Task>>({
     title: '',
     description: '',
-    type: 'TASK' as TaskType,
-    priority: 'MEDIUM' as TaskPriority,
-    assignee_id: undefined as number | undefined,
-    parent_id: undefined as string | undefined,
-    start_time: undefined as string | undefined,
-    due_date: undefined as string | undefined,
-    estimated_hours: undefined as number | undefined,
+    type: '12',
+    priority: 'MEDIUM',
+    status: 'TODO',
   });
-  const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [selectedParentTask, setSelectedParentTask] = useState<number | null>(null);
+
   const navigate = useNavigate();
-  const user = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
+
+  useEffect(() => {
+    loadTasks();
+    loadUsers();
+  }, []);
 
   const loadTasks = async () => {
     try {
       setLoading(true);
       setError('');
       const data = await getTasks();
-      setTasks(data);
+      if (Array.isArray(data)) {
+        setTasks(data);
+      } else {
+        setTasks([]);
+        console.error('Received invalid tasks data:', data);
+      }
     } catch (error: any) {
       console.error('Error loading tasks:', error);
       setError(error.message);
-      if (error.message.includes('인증')) {
+      if (error.message === 'Unauthorized') {
         navigate('/login');
       }
     } finally {
@@ -153,28 +200,32 @@ const TaskListPage = () => {
     }
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    loadTasks();
-  }, [navigate]);
-
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const usersList = await getUsers();
+  const loadUsers = async () => {
+    try {
+      const usersList = await getUsers();
+      if (Array.isArray(usersList)) {
         setUsers(usersList);
-      } catch (error) {
-        console.error('Failed to load users:', error);
+      } else {
+        setUsers([]);
+        console.error('Received invalid users data:', usersList);
       }
-    };
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
 
-    loadUsers();
-  }, []);
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      const matchesSearch = !searchQuery || 
+        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchesUser = !selectedUser || task.assignee_id === selectedUser;
+      const matchesParent = !selectedParentTask || task.parent_id === selectedParentTask;
+
+      return matchesSearch && matchesUser && matchesParent;
+    });
+  }, [tasks, searchQuery, selectedUser, selectedParentTask]);
 
   const handleLogout = () => {
     logout();
@@ -182,83 +233,99 @@ const TaskListPage = () => {
   };
 
   const handleAddTask = () => {
-    setOpenDialog(true);
+    setOpenCreateDialog(true);
   };
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
+  const handleCloseCreateDialog = () => {
+    setOpenCreateDialog(false);
     setNewTask({
       title: '',
       description: '',
-      type: '5',
+      type: '12',
       priority: 'MEDIUM',
-      assignee_id: undefined,
-      parent_id: undefined,
-      start_time: undefined,
-      due_date: undefined,
-      estimated_hours: undefined,
+      status: 'TODO',
     });
-    setSelectedUser(null);
-    setSelectedParentTask(null);
+  };
+
+  const handleChange = (field: keyof Task, value: any) => {
+    setNewTask(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleCreateTask = async () => {
-    if (!newTask.title.trim()) {
+    if (!newTask.title) {
       setError('제목을 입력해주세요.');
       return;
     }
 
     try {
-      setCreating(true);
+      setLoading(true);
       setError('');
-      await createTask(newTask);
+
+      const taskToCreate: CreateTaskRequest = {
+        title: newTask.title || '',
+        description: newTask.description || '',
+        type: newTask.type || '12',
+        priority: newTask.priority || 'MEDIUM',
+        status: 'TODO',
+        start_time: newTask.start_time || toStartOfDay(new Date()),
+        due_date: newTask.due_date,
+        estimated_hours: typeof newTask.estimated_hours === 'number' ? newTask.estimated_hours : undefined,
+        assignee_id: typeof newTask.assignee_id === 'number' ? newTask.assignee_id : undefined,
+        parent_id: typeof newTask.parent_id === 'number' ? newTask.parent_id : undefined,
+      };
+
+      await createTask(taskToCreate);
       await loadTasks();
-      handleCloseDialog();
-    } catch (error: any) {
-      console.error('Error creating task:', error);
-      setError(error.message);
-      if (error.message.includes('인증')) {
+      handleCloseCreateDialog();
+    } catch (err: any) {
+      console.error('Error creating task:', err);
+      setError(err.message || '일감 생성 중 오류가 발생했습니다.');
+      if (err.message === 'Unauthorized') {
         navigate('/login');
       }
     } finally {
-      setCreating(false);
+      setLoading(false);
     }
   };
 
-  const handleTaskClick = async (task: Task) => {
-    try {
-      const response = await fetch(`http://localhost:31858/api/tasks/hierarchy/${task.id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch task details');
-      }
-      const taskHierarchy = await response.json();
-      setSelectedTask(taskHierarchy.task);
-      setOpenEditDialog(true);
-    } catch (err) {
-      setError('작업 정보를 불러오는데 실패했습니다.');
-    }
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
   };
 
-  const handleTaskSave = async (updatedTask: Task) => {
-    try {
-      const response = await fetch(`http://localhost:31858/api/tasks/${updatedTask.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedTask),
-      });
+  const handleEditTask = (task: Task) => {
+    setSelectedTask(task);
+  };
 
-      if (!response.ok) {
-        throw new Error('Failed to update task');
+  const handleTaskSave = async (updatedTask: Partial<Task>) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      if (!selectedTask) {
+        // 새 일감 생성
+        await createTask(updatedTask as CreateTaskRequest);
+      } else {
+        // 기존 일감 수정
+        await updateTask(selectedTask.id, updatedTask);
       }
 
-      // 작업 목록 새로고침
       await loadTasks();
-      setOpenEditDialog(false);
-    } catch (err) {
-      setError('작업 수정에 실패했습니다.');
+      setSelectedTask(null);
+      setOpenCreateDialog(false);
+    } catch (error: any) {
+      console.error('Error updating task:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const getUserName = (userId: number): string => {
+    const user = users.find(u => u.id === userId);
+    return user ? `${user.name} (${user.department})` : `사용자 #${userId}`;
   };
 
   if (loading) {
@@ -275,7 +342,7 @@ const TaskListPage = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="xl">
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h4" component="h1">
           작업 목록
@@ -298,270 +365,375 @@ const TaskListPage = () => {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Paper elevation={2}>
-        <List>
-          {tasks.map((task) => {
-            const assignedUser = users.find(user => user.id === task.assignee_id);
-            const parentTask = tasks.find(t => t.id === task.parent_id);
-            return (
-              <ListItem
-                key={task.id}
+      <Paper sx={{ mt: 2, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">일감 목록</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddTask}
+          >
+            일감 추가
+          </Button>
+        </Box>
+
+        <Box sx={{ mb: 3 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="검색"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="제목 또는 설명으로 검색"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>담당자</InputLabel>
+                <Select
+                  value={selectedUser ?? ''}
+                  onChange={(e) => setSelectedUser(e.target.value === '' ? null : Number(e.target.value))}
+                  label="담당자"
+                >
+                  <MenuItem value="">
+                    <em>전체</em>
+                  </MenuItem>
+                  {users.map((user) => (
+                    <MenuItem key={user.id} value={user.id}>
+                      {user.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>상위일감</InputLabel>
+                <Select
+                  value={selectedParentTask ?? ''}
+                  onChange={(e) => setSelectedParentTask(e.target.value === '' ? null : Number(e.target.value))}
+                  label="상위일감"
+                >
+                  <MenuItem value="">
+                    <em>전체</em>
+                  </MenuItem>
+                  {tasks.map((task) => (
+                    <MenuItem key={task.id} value={task.id}>
+                      #{task.id} {task.title}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </Box>
+
+        <Grid container spacing={2}>
+          {filteredTasks.map((task) => (
+            <Grid item xs={12} sm={6} md={4} key={task.id}>
+              <Paper
                 sx={{
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
+                  p: 2,
+                  display: 'flex',
                   flexDirection: 'column',
-                  alignItems: 'stretch',
-                  py: 2,
+                  height: '100%',
                   cursor: 'pointer',
+                  backgroundColor: isOverdue(task.due_date) ? '#fff4f4' : 'background.paper',
+                  border: isOverdue(task.due_date) ? '1px solid #ffcdd2' : '1px solid #e0e0e0',
                   '&:hover': {
-                    bgcolor: 'action.hover',
+                    backgroundColor: isOverdue(task.due_date) ? '#ffe7e7' : 'rgba(0, 0, 0, 0.04)',
                   },
                 }}
                 onClick={() => handleTaskClick(task)}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold', mr: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography variant="body1" component="span" sx={{ fontWeight: 'bold' }}>
                     #{task.id}
                   </Typography>
-                  <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" component="span" sx={{ flexGrow: 1 }}>
                     {task.title}
                   </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditTask(task);
+                    }}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
                   <Chip
                     label={getTypeText(task.type)}
                     size="small"
-                    sx={{ mr: 1 }}
+                    sx={{ backgroundColor: getTypeColor(task.type), color: 'white' }}
                   />
                   <Chip
-                    label={getStatusText(task.status)}
-                    color={getStatusColor(task.status)}
+                    label={task.status}
                     size="small"
-                    sx={{ mr: 1 }}
+                    sx={{ backgroundColor: getStatusColor(task.status as TaskStatus), color: 'white' }}
                   />
                   <Chip
-                    label={getPriorityText(task.priority)}
-                    color={getPriorityColor(task.priority)}
+                    label={task.priority}
                     size="small"
+                    sx={{ backgroundColor: getPriorityColor(task.priority as TaskPriority), color: 'white' }}
                   />
                 </Box>
-                <Box sx={{ mb: 1 }}>
-                  <Box data-color-mode="light">
-                    <MDEditor.Markdown source={task.description} />
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 2 }}>
-                  {parentTask && (
-                    <Typography variant="body2">
-                      상위 작업: #{parentTask.id} {parentTask.title}
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 'auto' }}>
+                  {task.parent_id && (
+                    <Typography variant="body2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>상위일감:</span>
+                      <span style={{ fontWeight: 'bold' }}>#{task.parent_id}</span>
                     </Typography>
                   )}
-                  {assignedUser && (
-                    <Typography variant="body2">
-                      담당자: {assignedUser.name} ({assignedUser.department})
+                  {task.assignee_id && (
+                    <Typography variant="body2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>담당자:</span>
+                      <span style={{ fontWeight: 'bold' }}>{getUserName(task.assignee_id)}</span>
                     </Typography>
                   )}
-                  {task.start_time && (
-                    <Typography variant="body2">
-                      시작: {formatDate(task.start_time)}
-                    </Typography>
-                  )}
-                  {task.due_date && (
-                    <Typography variant="body2">
-                      마감: {formatDate(task.due_date)}
-                    </Typography>
+                  {(task.start_time || task.due_date) && (
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      {task.start_time && (
+                        <Typography variant="body2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span>시작일:</span>
+                          <span style={{ fontWeight: 'bold' }}>{formatDate(task.start_time)}</span>
+                        </Typography>
+                      )}
+                      {task.due_date && (
+                        <Typography variant="body2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span>마감일:</span>
+                          <span style={{ 
+                            fontWeight: 'bold', 
+                            color: isOverdue(task.due_date) ? '#d32f2f' : 'inherit'
+                          }}>
+                            {formatDate(task.due_date)}
+                          </span>
+                        </Typography>
+                      )}
+                    </Box>
                   )}
                   {task.estimated_hours && (
-                    <Typography variant="body2">
-                      예상 시간: {task.estimated_hours}시간
+                    <Typography variant="body2" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>예상시간:</span>
+                      <span style={{ fontWeight: 'bold' }}>{task.estimated_hours}시간</span>
                     </Typography>
                   )}
+                  {task.progress > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          진행률: {task.progress}%
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={task.progress}
+                          sx={{ flexGrow: 1 }}
+                        />
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
-                <Box sx={{ width: '100%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    진행률: {task.progress}%
-                  </Typography>
-                  <LinearProgress
-                    variant="determinate"
-                    value={task.progress}
-                    sx={{ height: 8, borderRadius: 1 }}
-                  />
-                </Box>
-              </ListItem>
-            );
-          })}
-          {tasks.length === 0 && (
-            <ListItem>
-              <ListItemText
-                primary="작업이 없습니다."
-                secondary="새 작업을 추가해보세요."
-              />
-            </ListItem>
-          )}
-        </List>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
       </Paper>
 
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>새 작업 추가</DialogTitle>
+      <Dialog
+        open={openCreateDialog}
+        onClose={handleCloseCreateDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>새 일감 생성</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
               <TextField
-                autoFocus
                 label="제목"
-                fullWidth
                 value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                onChange={(e) => handleChange('title', e.target.value)}
+                fullWidth
+                size="small"
               />
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                설명
-              </Typography>
-              <Box data-color-mode="light">
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="body2" color="textSecondary">설명</Typography>
+              </Box>
+              <Box data-color-mode="light" style={{ border: '1px solid #ddd', borderRadius: '4px' }}>
                 <MDEditor
                   value={newTask.description}
-                  onChange={(value) => setNewTask({ ...newTask, description: value || '' })}
-                  height={200}
+                  onChange={(value) => handleChange('description', value || '')}
                   preview="edit"
+                  height={200}
+                  hideToolbar={false}
+                  enableScroll={true}
                 />
               </Box>
             </Grid>
-            <Grid item xs={6}>
-              <FormControl fullWidth>
-                <InputLabel>유형</InputLabel>
-                <Select
-                  value={newTask.type}
-                  label="유형"
-                  onChange={(e) => setNewTask({ ...newTask, type: e.target.value as TaskType })}
-                >
-                  <MenuItem value="1">MainTask</MenuItem>
-                  <MenuItem value="2">기획&설계</MenuItem>
-                  <MenuItem value="3">버그</MenuItem>
-                  <MenuItem value="4">샘플개발</MenuItem>
-                  <MenuItem value="5">개발</MenuItem>
-                  <MenuItem value="6">지원</MenuItem>
-                  <MenuItem value="7">보안</MenuItem>
-                  <MenuItem value="8">기술검토</MenuItem>
-                  <MenuItem value="9">리소스관리</MenuItem>
-                  <MenuItem value="10">테스트</MenuItem>
-                  <MenuItem value="11">문서화&보고</MenuItem>
-                  <MenuItem value="12">프로젝트관리</MenuItem>
-                </Select>
-              </FormControl>
+
+            <Grid item container spacing={2}>
+              <Grid item xs={4}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>유형</InputLabel>
+                  <Select
+                    value={newTask.type}
+                    onChange={(e) => handleChange('type', e.target.value)}
+                    label="유형"
+                  >
+                    {Object.entries(taskTypeOptions).map(([value, label]) => (
+                      <MenuItem key={value} value={value}>
+                        {label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={4}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>우선순위</InputLabel>
+                  <Select
+                    value={newTask.priority}
+                    onChange={(e) => handleChange('priority', e.target.value)}
+                    label="우선순위"
+                  >
+                    {Object.entries(priorityOptions).map(([value, label]) => (
+                      <MenuItem key={value} value={value}>
+                        {label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={4}>
+                <TextField
+                  label="예상시간"
+                  type="number"
+                  value={newTask.estimated_hours || ''}
+                  onChange={(e) => {
+                    const value = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                    handleChange('estimated_hours', value);
+                  }}
+                  fullWidth
+                  size="small"
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">시간</InputAdornment>,
+                  }}
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={6}>
-              <FormControl fullWidth>
-                <InputLabel>우선순위</InputLabel>
-                <Select
-                  value={newTask.priority}
-                  label="우선순위"
-                  onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as TaskPriority })}
-                >
-                  <MenuItem value="LOW">낮음</MenuItem>
-                  <MenuItem value="MEDIUM">보통</MenuItem>
-                  <MenuItem value="HIGH">높음</MenuItem>
-                  <MenuItem value="CRITICAL">긴급</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <Autocomplete
-                value={selectedParentTask}
-                onChange={(event, newValue) => {
-                  setSelectedParentTask(newValue);
-                  setNewTask(prev => ({ ...prev, parent_id: newValue?.id }));
-                }}
-                options={tasks}
-                getOptionLabel={(option) => `#${option.id} ${option.title}`}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="상위 작업"
-                    placeholder="상위 작업을 선택하세요"
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <li {...props}>
-                    <Typography>
-                      #{option.id} {option.title}
-                    </Typography>
-                  </li>
-                )}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Autocomplete
-                value={selectedUser}
-                onChange={(event, newValue) => {
-                  setSelectedUser(newValue);
-                  setNewTask(prev => ({ ...prev, assignee_id: newValue?.id }));
-                }}
-                options={users}
-                getOptionLabel={(option) => `${option.name} (${option.department})`}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
+
+            <Grid item container spacing={2}>
+              <Grid item xs={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>상위일감</InputLabel>
+                  <Select
+                    value={newTask.parent_id || ''}
+                    onChange={(e) => handleChange('parent_id', e.target.value)}
+                    label="상위일감"
+                  >
+                    <MenuItem value="">
+                      <em>없음</em>
+                    </MenuItem>
+                    {tasks.map((task) => (
+                      <MenuItem key={task.id} value={task.id}>
+                        #{task.id} {task.title}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>담당자</InputLabel>
+                  <Select
+                    value={newTask.assignee_id || ''}
+                    onChange={(e) => handleChange('assignee_id', e.target.value)}
                     label="담당자"
-                    placeholder="담당자를 선택하세요"
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <li {...props}>
-                    <Typography>
-                      {option.name} - {option.department} ({option.position})
-                    </Typography>
-                  </li>
-                )}
-              />
+                  >
+                    <MenuItem value="">
+                      <em>없음</em>
+                    </MenuItem>
+                    {users.map((user) => (
+                      <MenuItem key={user.id} value={user.id}>
+                        {user.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
             </Grid>
+
             <Grid item xs={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-                <DateTimePicker
-                  label="시작 시간"
-                  value={newTask.start_time ? new Date(newTask.start_time) : null}
-                  onChange={(date) => setNewTask({ ...newTask, start_time: date?.toISOString() })}
-                  slotProps={{ textField: { fullWidth: true } }}
+                <DatePicker
+                  label="시작 날짜"
+                  value={newTask.start_time ? fromUTCMillis(newTask.start_time) : null}
+                  onChange={(date) => handleChange('start_time', date)}
+                  slotProps={{
+                    textField: { 
+                      fullWidth: true,
+                      size: 'small'
+                    },
+                    actionBar: {
+                      actions: ['today', 'accept', 'cancel']
+                    }
+                  }}
                 />
               </LocalizationProvider>
             </Grid>
             <Grid item xs={6}>
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ko}>
-                <DateTimePicker
-                  label="마감 기한"
-                  value={newTask.due_date ? new Date(newTask.due_date) : null}
-                  onChange={(date) => setNewTask({ ...newTask, due_date: date?.toISOString() })}
-                  slotProps={{ textField: { fullWidth: true } }}
+                <DatePicker
+                  label="마감 날짜"
+                  value={newTask.due_date ? fromUTCMillis(newTask.due_date) : null}
+                  onChange={(date) => handleChange('due_date', date)}
+                  slotProps={{
+                    textField: { 
+                      fullWidth: true,
+                      size: 'small'
+                    },
+                    actionBar: {
+                      actions: ['today', 'accept', 'cancel']
+                    }
+                  }}
                 />
               </LocalizationProvider>
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                type="number"
-                label="예상 시간 (시간)"
-                fullWidth
-                value={newTask.estimated_hours || ''}
-                onChange={(e) => setNewTask({ ...newTask, estimated_hours: e.target.value ? parseFloat(e.target.value) : undefined })}
-              />
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog}>취소</Button>
+          <Button onClick={handleCloseCreateDialog}>취소</Button>
           <Button
             onClick={handleCreateTask}
             variant="contained"
-            disabled={creating}
           >
-            {creating ? <CircularProgress size={24} /> : '추가'}
+            생성
           </Button>
         </DialogActions>
       </Dialog>
 
       <TaskEditDialog
-        open={openEditDialog}
+        open={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
         task={selectedTask}
-        tasks={tasks}
-        onClose={() => setOpenEditDialog(false)}
         onSave={handleTaskSave}
+        users={users}
+        tasks={tasks}
       />
     </Container>
   );

@@ -24,7 +24,8 @@ import {
   ExpandMore,
   ExpandLess
 } from '@mui/icons-material';
-import { Task, TaskHierarchy } from '../../services/taskService';
+import { Task, TaskHierarchy, updateTask } from '../../services/taskService';
+import { User, getUsers } from '../../services/userService';
 import TaskEditDialog from '../../components/TaskEditDialog';
 
 interface GanttTask extends GanttTaskType {
@@ -57,6 +58,7 @@ const GanttChart: React.FC = () => {
     message: '',
     severity: 'success'
   });
+  const [users, setUsers] = useState<User[]>([]);
 
   const convertToGanttTasks = (taskHierarchy: TaskHierarchy): GanttTaskData[] => {
     const result: GanttTaskData[] = [];
@@ -154,34 +156,31 @@ const GanttChart: React.FC = () => {
     }
   };
 
-  const handleTaskSave = async (updatedTask: Task) => {
+  const handleTaskSave = async (updatedTask: Partial<Task>) => {
     try {
-      const response = await fetch(`http://localhost:31858/api/tasks/${updatedTask.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedTask),
-      });
+      if (!selectedTask?.originalTask) return;
 
-      if (!response.ok) {
-        throw new Error('Failed to update task');
-      }
+      setLoading(true);
+      setError('');
 
+      await updateTask(selectedTask.originalTask.id, updatedTask);
+      await fetchTasks();
+      setIsEditDialogOpen(false);
       setSnackbar({
         open: true,
         message: '작업이 성공적으로 수정되었습니다.',
         severity: 'success'
       });
-
-      // 작업 목록 새로고침
-      fetchTasks();
-    } catch (err) {
+    } catch (error: any) {
+      console.error('Error updating task:', error);
+      setError(error.message);
       setSnackbar({
         open: true,
         message: '작업 수정에 실패했습니다.',
         severity: 'error'
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -191,7 +190,22 @@ const GanttChart: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
+    loadUsers();
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      const usersList = await getUsers();
+      if (Array.isArray(usersList)) {
+        setUsers(usersList);
+      } else {
+        setUsers([]);
+        console.error('Received invalid users data:', usersList);
+      }
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
 
   const handleViewModeChange = (
     event: React.MouseEvent<HTMLElement>,
@@ -327,6 +341,7 @@ const GanttChart: React.FC = () => {
         open={isEditDialogOpen}
         task={selectedTask?.originalTask || null}
         tasks={tasks.map(t => t.originalTask)}
+        users={users}
         onClose={() => setIsEditDialogOpen(false)}
         onSave={handleTaskSave}
       />
