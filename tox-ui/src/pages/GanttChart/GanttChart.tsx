@@ -64,23 +64,27 @@ const GanttChart: React.FC = () => {
     const result: GanttTaskData[] = [];
     
     const convertTask = (task: TaskHierarchy, parentId?: string) => {
-      const startTime = task.task.start_time ? new Date(task.task.start_time) : new Date();
-      const endTime = task.task.due_date ? new Date(task.task.due_date) : new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
-      
+      const startTime = new Date(task.task.start_time * 1000);
+      const endTime = task.task.due_date 
+        ? new Date(task.task.due_date * 1000)
+        : new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
+
       const ganttTask: GanttTaskData = {
         id: task.task.id.toString(),
         name: task.task.title,
         start: startTime,
         end: endTime,
-        progress: task.task.progress,
+        progress: task.task.progress || 0,
         dependencies: task.task.parent_id ? [task.task.parent_id.toString()] : undefined,
         type: task.sub_tasks && task.sub_tasks.length > 0 ? 'project' : 'task',
         hideChildren: !expandAll,
+        project: task.sub_tasks && task.sub_tasks.length > 0 ? task.task.id.toString() : undefined,
         styles: {
           backgroundColor: getTaskColor(task.task.priority),
           progressColor: getProgressColor(task.task.priority),
         },
-        originalTask: task.task
+        originalTask: task.task,
+        isDisabled: false,
       };
       
       result.push(ganttTask);
@@ -123,7 +127,18 @@ const GanttChart: React.FC = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:31858/api/tasks');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Unauthorized');
+      }
+
+      const response = await fetch('http://localhost:31858/api/tasks', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
       if (!response.ok) {
         throw new Error('Failed to fetch tasks');
       }
@@ -132,16 +147,22 @@ const GanttChart: React.FC = () => {
       const hierarchyPromises = tasksData
         .filter((task: any) => !task.parent_id)
         .map((task: any) => 
-          fetch(`http://localhost:31858/api/tasks/hierarchy/${task.id}`)
-            .then(res => res.json())
+          fetch(`http://localhost:31858/api/tasks/hierarchy/${task.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            }
+          }).then(res => res.json())
         );
       
       const hierarchies = await Promise.all(hierarchyPromises);
       const allGanttTasks = hierarchies.flatMap(convertToGanttTasks);
       
+      console.log('Gantt tasks:', allGanttTasks); 
       setTasks(allGanttTasks);
       setError(null);
     } catch (err) {
+      console.error('Error fetching tasks:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
@@ -309,24 +330,31 @@ const GanttChart: React.FC = () => {
           height: 'calc(100vh - 300px)', 
           p: 2,
           bgcolor: '#f5f5f5',
-          borderRadius: 1
+          borderRadius: 1,
+          overflow: 'auto'
         }}
       >
         {tasks.length > 0 ? (
           <Gantt
             tasks={tasks}
             viewMode={viewMode}
-            listCellWidth=""
-            columnWidth={60}
+            listCellWidth={150}
+            columnWidth={65}
+            rowHeight={50}
             barCornerRadius={4}
             barProgressColor="#1976d2"
             barProgressSelectedColor="#2196f3"
-            handleWidth={10}
+            handleWidth={8}
             todayColor="rgba(252, 248, 227, 0.5)"
             projectProgressColor="#1976d2"
             projectProgressSelectedColor="#2196f3"
             rtl={false}
             onDoubleClick={handleTaskClick}
+            onDateChange={() => {}}
+            onProgressChange={() => {}}
+            onTaskDelete={() => {}}
+            onSelect={() => {}}
+            locale="ko-KR"
           />
         ) : (
           <Box display="flex" justifyContent="center" alignItems="center" height="100%">
