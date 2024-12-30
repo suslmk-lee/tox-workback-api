@@ -6,6 +6,11 @@ export type TaskType = 'BUG' | 'FEATURE' | 'IMPROVEMENT' | 'TASK';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'BLOCKED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+export interface TaskHierarchy {
+  task: Task;
+  sub_tasks?: TaskHierarchy[];
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -14,6 +19,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   assignee_id?: number;
+  parent_id?: string;
   start_time?: string;
   due_date?: string;
   progress: number;

@@ -24,8 +24,11 @@ import {
   InputLabel,
   Grid,
   LinearProgress,
+  Autocomplete,
 } from '@mui/material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import {
+  AdapterDateFns
+} from '@mui/x-date-pickers/AdapterDateFns';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { format } from 'date-fns';
@@ -34,6 +37,9 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import AddIcon from '@mui/icons-material/Add';
 import { Task, TaskType, TaskStatus, TaskPriority, getTasks, createTask } from '../services/taskService';
 import { logout } from '../services/authService';
+import TaskEditDialog from '../components/TaskEditDialog';
+import { User, getUsers } from '../services/userService';
+import MDEditor from '@uiw/react-md-editor';
 
 const DATE_FORMAT = 'yyyy-MM-dd HH:mm';
 
@@ -125,12 +131,18 @@ const TaskListPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedParentTask, setSelectedParentTask] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
     type: 'TASK' as TaskType,
     priority: 'MEDIUM' as TaskPriority,
     assignee_id: undefined as number | undefined,
+    parent_id: undefined as string | undefined,
     start_time: undefined as string | undefined,
     due_date: undefined as string | undefined,
     estimated_hours: undefined as number | undefined,
@@ -138,16 +150,6 @@ const TaskListPage = () => {
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const user = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    loadTasks();
-  }, [navigate]);
 
   const loadTasks = async () => {
     try {
@@ -166,6 +168,29 @@ const TaskListPage = () => {
     }
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    loadTasks();
+  }, [navigate]);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const usersList = await getUsers();
+        setUsers(usersList);
+      } catch (error) {
+        console.error('Failed to load users:', error);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -183,10 +208,13 @@ const TaskListPage = () => {
       type: 'TASK',
       priority: 'MEDIUM',
       assignee_id: undefined,
+      parent_id: undefined,
       start_time: undefined,
       due_date: undefined,
       estimated_hours: undefined,
     });
+    setSelectedUser(null);
+    setSelectedParentTask(null);
   };
 
   const handleCreateTask = async () => {
@@ -209,6 +237,42 @@ const TaskListPage = () => {
       }
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleTaskClick = async (task: Task) => {
+    try {
+      const response = await fetch(`http://localhost:31858/api/tasks/hierarchy/${task.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch task details');
+      }
+      const taskHierarchy = await response.json();
+      setSelectedTask(taskHierarchy.task);
+      setOpenEditDialog(true);
+    } catch (err) {
+      setError('작업 정보를 불러오는데 실패했습니다.');
+    }
+  };
+
+  const handleTaskSave = async (updatedTask: Task) => {
+    try {
+      const response = await fetch(`http://localhost:31858/api/tasks/${updatedTask.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedTask),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update task');
+      }
+
+      // 작업 목록 새로고침
+      await loadTasks();
+      setOpenEditDialog(false);
+    } catch (err) {
+      setError('작업 수정에 실패했습니다.');
     }
   };
 
@@ -251,80 +315,94 @@ const TaskListPage = () => {
 
       <Paper elevation={2}>
         <List>
-          {tasks.map((task) => (
-            <ListItem
-              key={task.id}
-              sx={{
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                py: 2,
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Typography variant="body1" sx={{ fontWeight: 'bold', mr: 2 }}>
-                  #{task.id}
-                </Typography>
-                <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                  {task.title}
-                </Typography>
-                <Chip
-                  label={getTypeText(task.type)}
-                  size="small"
-                  sx={{ mr: 1 }}
-                />
-                <Chip
-                  label={getStatusText(task.status)}
-                  color={getStatusColor(task.status)}
-                  size="small"
-                  sx={{ mr: 1 }}
-                />
-                <Chip
-                  label={getPriorityText(task.priority)}
-                  color={getPriorityColor(task.priority)}
-                  size="small"
-                />
-              </Box>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  {task.description}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 2 }}>
-                {task.assignee_id && (
-                  <Typography variant="body2">
-                    담당자: {task.assignee_id}
+          {tasks.map((task) => {
+            const assignedUser = users.find(user => user.id === task.assignee_id);
+            const parentTask = tasks.find(t => t.id === task.parent_id);
+            return (
+              <ListItem
+                key={task.id}
+                sx={{
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  py: 2,
+                  cursor: 'pointer',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+                onClick={() => handleTaskClick(task)}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold', mr: 2 }}>
+                    #{task.id}
                   </Typography>
-                )}
-                {task.start_time && (
-                  <Typography variant="body2">
-                    시작: {formatDate(task.start_time)}
+                  <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                    {task.title}
                   </Typography>
-                )}
-                {task.due_date && (
-                  <Typography variant="body2">
-                    마감: {formatDate(task.due_date)}
+                  <Chip
+                    label={getTypeText(task.type)}
+                    size="small"
+                    sx={{ mr: 1 }}
+                  />
+                  <Chip
+                    label={getStatusText(task.status)}
+                    color={getStatusColor(task.status)}
+                    size="small"
+                    sx={{ mr: 1 }}
+                  />
+                  <Chip
+                    label={getPriorityText(task.priority)}
+                    color={getPriorityColor(task.priority)}
+                    size="small"
+                  />
+                </Box>
+                <Box sx={{ mb: 1 }}>
+                  <Box data-color-mode="light">
+                    <MDEditor.Markdown source={task.description} />
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 2 }}>
+                  {parentTask && (
+                    <Typography variant="body2">
+                      상위 작업: #{parentTask.id} {parentTask.title}
+                    </Typography>
+                  )}
+                  {assignedUser && (
+                    <Typography variant="body2">
+                      담당자: {assignedUser.name} ({assignedUser.department})
+                    </Typography>
+                  )}
+                  {task.start_time && (
+                    <Typography variant="body2">
+                      시작: {formatDate(task.start_time)}
+                    </Typography>
+                  )}
+                  {task.due_date && (
+                    <Typography variant="body2">
+                      마감: {formatDate(task.due_date)}
+                    </Typography>
+                  )}
+                  {task.estimated_hours && (
+                    <Typography variant="body2">
+                      예상 시간: {task.estimated_hours}시간
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ width: '100%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    진행률: {task.progress}%
                   </Typography>
-                )}
-                {task.estimated_hours && (
-                  <Typography variant="body2">
-                    예상 시간: {task.estimated_hours}시간
-                  </Typography>
-                )}
-              </Box>
-              <Box sx={{ width: '100%' }}>
-                <Typography variant="body2" sx={{ mb: 0.5 }}>
-                  진행률: {task.progress}%
-                </Typography>
-                <LinearProgress
-                  variant="determinate"
-                  value={task.progress}
-                  sx={{ height: 8, borderRadius: 1 }}
-                />
-              </Box>
-            </ListItem>
-          ))}
+                  <LinearProgress
+                    variant="determinate"
+                    value={task.progress}
+                    sx={{ height: 8, borderRadius: 1 }}
+                  />
+                </Box>
+              </ListItem>
+            );
+          })}
           {tasks.length === 0 && (
             <ListItem>
               <ListItemText
@@ -350,14 +428,17 @@ const TaskListPage = () => {
               />
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                label="설명"
-                fullWidth
-                multiline
-                rows={4}
-                value={newTask.description}
-                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-              />
+              <Typography variant="subtitle1" gutterBottom>
+                설명
+              </Typography>
+              <Box data-color-mode="light">
+                <MDEditor
+                  value={newTask.description}
+                  onChange={(value) => setNewTask({ ...newTask, description: value || '' })}
+                  height={200}
+                  preview="edit"
+                />
+              </Box>
             </Grid>
             <Grid item xs={6}>
               <FormControl fullWidth>
@@ -389,22 +470,54 @@ const TaskListPage = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={6}>
-              <TextField
-                type="number"
-                label="담당자 ID"
-                fullWidth
-                value={newTask.assignee_id || ''}
-                onChange={(e) => setNewTask({ ...newTask, assignee_id: e.target.value ? parseInt(e.target.value) : undefined })}
+            <Grid item xs={12}>
+              <Autocomplete
+                value={selectedParentTask}
+                onChange={(event, newValue) => {
+                  setSelectedParentTask(newValue);
+                  setNewTask(prev => ({ ...prev, parent_id: newValue?.id }));
+                }}
+                options={tasks}
+                getOptionLabel={(option) => `#${option.id} ${option.title}`}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="상위 작업"
+                    placeholder="상위 작업을 선택하세요"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    <Typography>
+                      #{option.id} {option.title}
+                    </Typography>
+                  </li>
+                )}
               />
             </Grid>
-            <Grid item xs={6}>
-              <TextField
-                type="number"
-                label="예상 시간 (시간)"
-                fullWidth
-                value={newTask.estimated_hours || ''}
-                onChange={(e) => setNewTask({ ...newTask, estimated_hours: e.target.value ? parseFloat(e.target.value) : undefined })}
+            <Grid item xs={12}>
+              <Autocomplete
+                value={selectedUser}
+                onChange={(event, newValue) => {
+                  setSelectedUser(newValue);
+                  setNewTask(prev => ({ ...prev, assignee_id: newValue?.id }));
+                }}
+                options={users}
+                getOptionLabel={(option) => `${option.name} (${option.department})`}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="담당자"
+                    placeholder="담당자를 선택하세요"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    <Typography>
+                      {option.name} - {option.department} ({option.position})
+                    </Typography>
+                  </li>
+                )}
               />
             </Grid>
             <Grid item xs={6}>
@@ -427,6 +540,15 @@ const TaskListPage = () => {
                 />
               </LocalizationProvider>
             </Grid>
+            <Grid item xs={6}>
+              <TextField
+                type="number"
+                label="예상 시간 (시간)"
+                fullWidth
+                value={newTask.estimated_hours || ''}
+                onChange={(e) => setNewTask({ ...newTask, estimated_hours: e.target.value ? parseFloat(e.target.value) : undefined })}
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -440,6 +562,14 @@ const TaskListPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <TaskEditDialog
+        open={openEditDialog}
+        task={selectedTask}
+        tasks={tasks}
+        onClose={() => setOpenEditDialog(false)}
+        onSave={handleTaskSave}
+      />
     </Container>
   );
 };
