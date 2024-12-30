@@ -89,3 +89,65 @@ func GetTasksByUserID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tasks)
 }
+
+func GetSubTasks(w http.ResponseWriter, r *http.Request) {
+	// URL에서 parent_id 파라미터 추출
+	parentIDStr := r.URL.Path[len("/api/tasks/subtasks/"):]
+	parentID, err := strconv.ParseInt(parentIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid parent task ID", http.StatusBadRequest)
+		return
+	}
+
+	tasks, err := models.GetSubTasks(parentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
+}
+
+func GetParentTask(w http.ResponseWriter, r *http.Request) {
+	// URL에서 task_id 파라미터 추출
+	taskIDStr := r.URL.Path[len("/api/tasks/parent/"):]
+	taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	parentTask, err := models.GetParentTask(taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if parentTask == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(parentTask)
+}
+
+func GetTaskHierarchy(w http.ResponseWriter, r *http.Request) {
+	// URL에서 task_id 파라미터 추출
+	taskIDStr := r.URL.Path[len("/api/tasks/hierarchy/"):]
+	taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	hierarchy, err := models.GetTaskHierarchy(taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(hierarchy)
+}
