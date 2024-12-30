@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import TaskListPage from './pages/TaskListPage';
 import UserListPage from './pages/UserListPage';
 import ProfilePage from './pages/ProfilePage';
+import GanttChart from './pages/GanttChart/GanttChart';
 
 // Components
 import NavBar from './components/NavBar';
@@ -113,6 +114,11 @@ function App() {
             <Route path="/profile" element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/gantt" element={
+              <ProtectedRoute>
+                <GanttChart />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/tasks" replace />} />

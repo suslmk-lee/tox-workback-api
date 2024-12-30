@@ -28,6 +28,13 @@ const NavBar: React.FC = () => {
           <Button
             color="inherit"
             component={RouterLink}
+            to="/gantt"
+          >
+            Gantt 차트
+          </Button>
+          <Button
+            color="inherit"
+            component={RouterLink}
             to="/users"
           >
             사용자 관리
