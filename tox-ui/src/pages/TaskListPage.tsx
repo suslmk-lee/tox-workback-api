@@ -35,7 +35,7 @@ import { format } from 'date-fns';
 import ko from 'date-fns/locale/ko';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AddIcon from '@mui/icons-material/Add';
-import { Task, TaskType, TaskStatus, TaskPriority, getTasks, createTask } from '../services/taskService';
+import { Task, TaskType, TaskStatus, TaskPriority, getTasks, createTask, getTypeText } from '../services/taskService';
 import { logout } from '../services/authService';
 import TaskEditDialog from '../components/TaskEditDialog';
 import { User, getUsers } from '../services/userService';
@@ -100,21 +100,6 @@ const getPriorityText = (priority: TaskPriority) => {
       return '긴급';
     default:
       return priority;
-  }
-};
-
-const getTypeText = (type: TaskType) => {
-  switch (type) {
-    case 'BUG':
-      return '버그';
-    case 'FEATURE':
-      return '기능';
-    case 'IMPROVEMENT':
-      return '개선';
-    case 'TASK':
-      return '작업';
-    default:
-      return type;
   }
 };
 
@@ -205,7 +190,7 @@ const TaskListPage = () => {
     setNewTask({
       title: '',
       description: '',
-      type: 'TASK',
+      type: '5',
       priority: 'MEDIUM',
       assignee_id: undefined,
       parent_id: undefined,
@@ -448,10 +433,18 @@ const TaskListPage = () => {
                   label="유형"
                   onChange={(e) => setNewTask({ ...newTask, type: e.target.value as TaskType })}
                 >
-                  <MenuItem value="BUG">버그</MenuItem>
-                  <MenuItem value="FEATURE">기능</MenuItem>
-                  <MenuItem value="IMPROVEMENT">개선</MenuItem>
-                  <MenuItem value="TASK">작업</MenuItem>
+                  <MenuItem value="1">MainTask</MenuItem>
+                  <MenuItem value="2">기획&설계</MenuItem>
+                  <MenuItem value="3">버그</MenuItem>
+                  <MenuItem value="4">샘플개발</MenuItem>
+                  <MenuItem value="5">개발</MenuItem>
+                  <MenuItem value="6">지원</MenuItem>
+                  <MenuItem value="7">보안</MenuItem>
+                  <MenuItem value="8">기술검토</MenuItem>
+                  <MenuItem value="9">리소스관리</MenuItem>
+                  <MenuItem value="10">테스트</MenuItem>
+                  <MenuItem value="11">문서화&보고</MenuItem>
+                  <MenuItem value="12">프로젝트관리</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

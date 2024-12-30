@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:31858/api/tasks';
 
-export type TaskType = 'BUG' | 'FEATURE' | 'IMPROVEMENT' | 'TASK';
+export type TaskType = '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | '11' | '12';
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE' | 'BLOCKED';
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -39,6 +39,37 @@ export interface CreateTaskRequest {
   due_date?: string;
   estimated_hours?: number;
 }
+
+export const getTypeText = (type: TaskType) => {
+  switch (type) {
+    case '1':
+      return 'MainTask';
+    case '2':
+      return '기획&설계';
+    case '3':
+      return '버그';
+    case '4':
+      return '샘플개발';
+    case '5':
+      return '개발';
+    case '6':
+      return '지원';
+    case '7':
+      return '보안';
+    case '8':
+      return '기술검토';
+    case '9':
+      return '리소스관리';
+    case '10':
+      return '테스트';
+    case '11':
+      return '문서화&보고';
+    case '12':
+      return '프로젝트관리';
+    default:
+      return type;
+  }
+};
 
 export const getTasks = async (): Promise<Task[]> => {
   try {

@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { CssBaseline, Box } from '@mui/material';
+import CssBaseline from '@mui/material/CssBaseline';
+import { Box } from '@mui/material';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -10,6 +11,7 @@ import TaskListPage from './pages/TaskListPage';
 import UserListPage from './pages/UserListPage';
 import ProfilePage from './pages/ProfilePage';
 import GanttChart from './pages/GanttChart/GanttChart';
+import DashboardPage from './pages/DashboardPage';
 
 // Components
 import NavBar from './components/NavBar';
@@ -32,34 +34,6 @@ const theme = createTheme({
     },
   },
 });
-
-// Protected Route Component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const [isAuth, setIsAuth] = React.useState<boolean>(isAuthenticated());
-
-  React.useEffect(() => {
-    const checkAuth = async () => {
-      if (!isAuthenticated()) {
-        setIsAuth(false);
-        return;
-      }
-
-      try {
-        await validateToken();
-      } catch (error) {
-        setIsAuth(false);
-      }
-    };
-    
-    checkAuth();
-  }, []); // 의존성 배열 비움
-
-  if (!isAuth) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <Box component="main" sx={{ flexGrow: 1, p: 3 }}>{children}</Box>;
-};
 
 function App() {
   const [isAuth, setIsAuth] = React.useState<boolean>(isAuthenticated());
@@ -96,33 +70,28 @@ function App() {
           {isAuth && <NavBar />}
           <Routes>
             <Route path="/login" element={
-              isAuth ? <Navigate to="/tasks" replace /> : <LoginPage />
+              isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />
             } />
             <Route path="/register" element={
-              isAuth ? <Navigate to="/tasks" replace /> : <RegisterPage />
+              isAuth ? <Navigate to="/dashboard" replace /> : <RegisterPage />
+            } />
+            <Route path="/dashboard" element={
+              isAuth ? <DashboardPage /> : <Navigate to="/login" replace />
             } />
             <Route path="/tasks" element={
-              <ProtectedRoute>
-                <TaskListPage />
-              </ProtectedRoute>
+              isAuth ? <TaskListPage /> : <Navigate to="/login" replace />
             } />
             <Route path="/users" element={
-              <ProtectedRoute>
-                <UserListPage />
-              </ProtectedRoute>
+              isAuth ? <UserListPage /> : <Navigate to="/login" replace />
             } />
             <Route path="/profile" element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
+              isAuth ? <ProfilePage /> : <Navigate to="/login" replace />
             } />
             <Route path="/gantt" element={
-              <ProtectedRoute>
-                <GanttChart />
-              </ProtectedRoute>
+              isAuth ? <GanttChart /> : <Navigate to="/login" replace />
             } />
-            <Route path="/" element={<Navigate to="/tasks" replace />} />
-            <Route path="*" element={<Navigate to="/tasks" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Box>
       </Router>
