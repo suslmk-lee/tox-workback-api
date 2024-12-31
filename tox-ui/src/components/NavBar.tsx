@@ -6,7 +6,6 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 const NavBar: React.FC = () => {
@@ -48,13 +47,6 @@ const NavBar: React.FC = () => {
               사용자
             </Button>
           )}
-          <Button
-            color="inherit"
-            startIcon={<TimelineIcon />}
-            onClick={() => navigate('/gantt')}
-          >
-            간트차트
-          </Button>
         </Box>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button

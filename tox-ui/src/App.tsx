@@ -10,7 +10,6 @@ import RegisterPage from './pages/RegisterPage';
 import TaskListPage from './pages/TaskListPage';
 import UserListPage from './pages/UserListPage';
 import ProfilePage from './pages/ProfilePage';
-import GanttChart from './pages/GanttChart/GanttChart';
 import DashboardPage from './pages/DashboardPage';
 
 // Components
@@ -86,9 +85,6 @@ function App() {
             } />
             <Route path="/profile" element={
               isAuth ? <ProfilePage /> : <Navigate to="/login" replace />
-            } />
-            <Route path="/gantt" element={
-              isAuth ? <GanttChart /> : <Navigate to="/login" replace />
             } />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -23,7 +23,7 @@ interface TaskEditDialogProps {
   task: Task | null;
   onSave: (editedTask: Partial<Task>) => void;
   users: User[];
-  tasks: Task[];
+  tasks?: Task[];
 }
 
 const TaskEditDialog: React.FC<TaskEditDialogProps> = ({
@@ -54,6 +54,7 @@ const TaskEditDialog: React.FC<TaskEditDialogProps> = ({
   };
 
   const findChildTasks = (taskId: number): number[] => {
+    if (!tasks) return [];
     const childTasks: number[] = [];
     const findChildren = (id: number) => {
       const children = tasks.filter(t => t.parent_id === id);
@@ -67,13 +68,13 @@ const TaskEditDialog: React.FC<TaskEditDialogProps> = ({
   };
 
   // 선택 가능한 상위 작업 목록 필터링
-  const availableParentTasks = tasks.filter(t => {
+  const availableParentTasks = tasks?.filter(t => {
     // 자기 자신은 제외
     if (editedTask && t.id === editedTask.id) return false;
     // 현재 작업의 하위 작업들은 제외
     if (editedTask && editedTask.id && findChildTasks(editedTask.id).includes(t.id)) return false;
     return true;
-  });
+  }) || [];
 
   if (!editedTask) return null;
 
